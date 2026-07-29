@@ -40,7 +40,7 @@ jobs:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Fetch ffmpeg sidecar
         shell: bash
         run: scripts/fetch-ffmpeg.sh ${{ runner.os == 'Windows' && 'windows' || 'macos-arm' }}
