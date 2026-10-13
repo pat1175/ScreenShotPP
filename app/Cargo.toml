@@ -1,0 +1,93 @@
+[workspace]
+members = [".", "core"]
+
+[package]
+name = "screenshotpp"
+version = "0.5.1"
+description = "ScreenShotPP – background screenshot utility"
+authors = ["you"]
+edition = "2021"
+
+# Optimise les dépendances (image, xcap, …) même en build dev : le traitement
+# pixel par pixel (capture, encodage) y est sinon 10-30× plus lent qu'en release,
+# ce qui dominait la latence de capture. N'affecte pas la vitesse de recompilation
+# de notre propre crate (opt-level 0 conservé pour le code applicatif).
+[profile.dev.package."*"]
+opt-level = 3
+
+[build-dependencies]
+swift-rs = { version = "1.0.7", features = ["build"] }
+winresource = "0.1"
+
+[dependencies]
+screenshotpp-core = { path = "core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+image = "0.25"
+chrono = "0.4"
+swift-rs = "1.0.7"
+
+# UI native : boucle winit + une fenêtre OpenGL (glutin) par fenêtre de l'app,
+# rendue par egui. Aucune webview.
+egui = "0.36"
+egui-winit = "0.36"
+egui_glow = { version = "0.36", features = ["winit"] }
+glutin = "0.32"
+glutin-winit = "0.5"
+winit = "0.30"
+raw-window-handle = "0.6"
+
+# Rendu CPU de l'image annotée finale (export copier/enregistrer).
+tiny-skia = "0.11"
+ab_glyph = "0.2"
+
+arboard = "3"
+rfd = "0.17"
+global-hotkey = "0.8"
+opener = { version = "0.8", features = ["reveal"] }
+auto-launch = "0.6"
+dirs = "6"
+semver = "1"
+base64 = "0.22"
+minisign-verify = "0.2"
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+xcap = "0.9"
+tray-icon = "0.24"
+ureq = "3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-graphics = { version = "0.3", features = ["CGEvent"] }
+flate2 = "1"
+tar = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Media_Ocr",
+    "Graphics_Imaging",
+    "Storage_Streams",
+    "Globalization",
+    "Foundation",
+    "Win32_System_Com",
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+] }
+# Capture d'écran via Windows Graphics Capture (WGC). Remplace le chemin GDI
+# BitBlt de xcap, qui rend du noir pour le contenu composé GPU (partage Teams)
+# et est peu fiable sur écrans secondaires / DPI mixtes.
+windows-capture = "2"
+
+# Installeurs (cargo-packager, en CI) : .app/.dmg macOS, NSIS Windows.
+[package.metadata.packager]
+product-name = "ScreenShotPP"
+identifier = "com.pat.screenshotpp"
+description = "A fast, native screenshot tool"
+icons = ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+# ffmpeg placé à côté de l'exécutable (binaries/ffmpeg-<triple>[.exe]).
+external-binaries = ["binaries/ffmpeg"]
+out-dir = "target/packages"
+
+[package.metadata.packager.macos]
+signing-identity = "ScreenShotPP Dev"

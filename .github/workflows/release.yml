@@ -17,17 +17,14 @@ jobs:
       - name: Fetch ffmpeg sidecar
         shell: bash
         run: scripts/fetch-ffmpeg.sh macos-arm
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
-      - run: npm ci
+          workspaces: app
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
       - name: Import Developer ID Application certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -66,15 +63,23 @@ jobs:
           echo "APPLE_API_KEY=$APPLE_API_KEY" >> "$GITHUB_ENV"
           echo "APPLE_API_KEY_PATH=$APPLE_API_KEY_PATH" >> "$GITHUB_ENV"
       - name: Build signed and notarized app + DMG
+        working-directory: app
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run tauri build -- --bundles app,dmg --target aarch64-apple-darwin
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo packager --release --target aarch64-apple-darwin --formats app,dmg
+          # Archive de mise à jour (format attendu par l'updater) + signature minisign.
+          cd target/packages
+          tar -czf ScreenShotPP.app.tar.gz ScreenShotPP.app
+          cargo packager signer sign ScreenShotPP.app.tar.gz \
+            --private-key "$CARGO_PACKAGER_SIGN_PRIVATE_KEY" \
+            --password "$CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD"
       - name: Notarize and staple the DMG
         run: |
-          dmg=$(ls src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg)
-          # Tauri notarizes and staples the .app but not the .dmg wrapper, then deletes
-          # the .app. Notarize the signed DMG itself so the ticket can be stapled to it.
+          dmg=$(ls app/target/packages/*.dmg)
+          # Notarize the signed DMG itself so the ticket can be stapled to it.
           xcrun notarytool submit "$dmg" \
             --issuer "$APPLE_API_ISSUER" \
             --key-id "$APPLE_API_KEY" \
@@ -82,14 +87,14 @@ jobs:
             --wait
           xcrun stapler staple "$dmg"
       - name: Validate stapled DMG
-        run: xcrun stapler validate src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+        run: xcrun stapler validate app/target/packages/*.dmg
       - uses: actions/upload-artifact@v7
         with:
           name: release-macos
           path: |
-            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
-            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz
-            src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
+            app/target/packages/*.dmg
+            app/target/packages/*.app.tar.gz
+            app/target/packages/*.app.tar.gz.sig
           if-no-files-found: error
 
   build-windows:
@@ -99,26 +104,27 @@ jobs:
       - name: Fetch ffmpeg sidecar
         shell: bash
         run: scripts/fetch-ffmpeg.sh windows
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-          cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
-      - run: npm ci
+          workspaces: app
+      - name: Install cargo-packager
+        run: cargo install cargo-packager --locked
       - name: Build Windows NSIS preview installer
+        working-directory: app
+        shell: bash
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run tauri build -- --bundles nsis
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          cargo build --release
+          cargo packager --release --formats nsis
       - uses: actions/upload-artifact@v7
         with:
           name: release-windows
           path: |
-            src-tauri/target/release/bundle/nsis/*-setup.exe
-            src-tauri/target/release/bundle/nsis/*-setup.exe.sig
+            app/target/packages/*-setup.exe
+            app/target/packages/*-setup.exe.sig
           if-no-files-found: error
 
   publish-release:

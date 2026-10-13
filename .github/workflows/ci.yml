@@ -7,9 +7,7 @@ permissions:
   contents: read
 
 jobs:
-  # Signal rapide (~2 min) : logique pure testable sans la chaîne Tauri.
-  # `screenshotpp-core` ne dépend que de serde, et les tests JS sont du node pur,
-  # donc tout tourne sur ubuntu (le runner le plus rapide).
+  # Signal rapide (~2 min) : logique pure testable sans dépendances OS.
   fast:
     runs-on: ubuntu-latest
     steps:
@@ -17,22 +15,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: app
       - name: Cargo tests core (logique pure)
-        run: cargo test --manifest-path src-tauri/Cargo.toml -p screenshotpp-core
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 22
-      - name: Tests frontend (logique pure)
-        run: node --test src/accelerator.test.js src/editable-target.test.js src/editor/history.test.js src/editor/color.test.js src/editor/bubbles.test.js src/editor/editor.test.js src/editor/mosaic.test.js src/recorder/trim.test.js src/recorder/crop.test.js
+        run: cargo test --manifest-path app/Cargo.toml -p screenshotpp-core
       - name: Release storefront readiness
         shell: bash
         run: scripts/check-release-readiness.sh
 
-  # Validation de la build app complète (Tauri/xcap, dépendantes de l'OS).
+  # Build + tests de l'app complète (egui/xcap/OS), et binaire de test téléchargeable
+  # (exécutable + ffmpeg à côté) en artefact.
   # Sur Windows, on force cargo à utiliser le disque D: (plus rapide que C: pour
-  # les charges « beaucoup de petits fichiers » d'une compil Rust) — gain I/O
-  # notable. L'env est posé AVANT le cache pour que rust-cache vise le bon dossier.
+  # les charges « beaucoup de petits fichiers » d'une compil Rust). L'env est posé
+  # AVANT le cache pour que rust-cache vise le bon dossier.
   build:
     strategy:
       fail-fast: false
@@ -40,7 +34,7 @@ jobs:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Fetch ffmpeg sidecar
         shell: bash
         run: scripts/fetch-ffmpeg.sh ${{ runner.os == 'Windows' && 'windows' || 'macos-arm' }}
@@ -54,6 +48,25 @@ jobs:
           "CARGO_TARGET_DIR=D:\target" | Out-File -FilePath $env:GITHUB_ENV -Append
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: ${{ runner.os == 'Windows' && 'src-tauri -> D:\target' || 'src-tauri' }}
-      - name: Cargo tests (logique pure)
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+          workspaces: ${{ runner.os == 'Windows' && 'app -> D:\target' || 'app' }}
+      - name: Cargo tests
+        run: cargo test --manifest-path app/Cargo.toml --workspace
+      - name: Build release binary
+        run: cargo build --release --manifest-path app/Cargo.toml
+      - name: Stage test build
+        shell: bash
+        run: |
+          target="${CARGO_TARGET_DIR:-app/target}"
+          mkdir -p dist
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cp "$target/release/screenshotpp.exe" dist/ScreenShotPP.exe
+            cp app/binaries/ffmpeg-x86_64-pc-windows-msvc.exe dist/ffmpeg.exe
+          else
+            cp "$target/release/screenshotpp" dist/ScreenShotPP
+            cp app/binaries/ffmpeg-aarch64-apple-darwin dist/ffmpeg
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: screenshotpp-${{ runner.os }}
+          path: dist/
+          if-no-files-found: error

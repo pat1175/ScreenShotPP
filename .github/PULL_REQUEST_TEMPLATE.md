@@ -4,8 +4,7 @@
 
 ## Testing
 
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml --lib`
-- [ ] `node --test src/accelerator.test.js src/editable-target.test.js src/editor/history.test.js src/editor/color.test.js src/editor/bubbles.test.js src/editor/editor.test.js src/editor/mosaic.test.js`
+- [ ] `cargo test --manifest-path app/Cargo.toml --workspace`
 - [ ] `scripts/check-release-readiness.sh`
 - [ ] Manual UI check, if applicable
 

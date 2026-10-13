@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/assets/logo.png" width="128" alt="ScreenShotPP logo"></p>
+
 # ScreenShotPP
 
 **A fast, native screenshot tool for macOS and Windows.**
@@ -12,7 +14,8 @@ Capture. Annotate. OCR. Copy. Done.
 ## Why ScreenShotPP?
 
 ScreenShotPP is a lightweight open-source screenshot utility built for a fast daily
-workflow. Trigger a global shortcut, select a region, annotate it, extract text with
+workflow. Its interface is fully native Rust ([egui](https://github.com/emilk/egui)),
+with no embedded web view. Trigger a global shortcut, select a region, annotate it, extract text with
 native OCR when needed, then copy or save the result.
 
 ## Features
@@ -69,34 +72,32 @@ The GitHub version remains free and includes the complete feature set.
 
 ### Prerequisites
 
-- [Node.js 22](https://nodejs.org/)
-- [Rust](https://www.rust-lang.org/tools/install)
-- Tauri platform prerequisites:
-  [macOS](https://v2.tauri.app/start/prerequisites/#macos) or
-  [Windows](https://v2.tauri.app/start/prerequisites/#windows)
+- [Rust](https://www.rust-lang.org/tools/install) stable
+- macOS: Xcode command line tools (the OCR/window bridge is compiled from Swift)
+- Windows: Microsoft C++ Build Tools (MSVC + Windows SDK)
+- For recording: an `ffmpeg` binary next to the built executable
+  (`scripts/fetch-ffmpeg.sh <windows|macos-arm>` downloads one into `app/binaries/`)
 
 ### Run the checks
 
 ```bash
-npm ci
-cargo test --manifest-path src-tauri/Cargo.toml --lib
-node --test src/accelerator.test.js src/editable-target.test.js src/editor/history.test.js src/editor/color.test.js src/editor/bubbles.test.js src/editor/editor.test.js src/editor/mosaic.test.js
+cargo test --manifest-path app/Cargo.toml --workspace
 ```
 
-### Build locally
+### Run / build locally
 
 ```bash
-npm run tauri build
+cargo run --manifest-path app/Cargo.toml
+cargo build --release --manifest-path app/Cargo.toml
 ```
 
-Local macOS builds use the development signing identity configured in
-`src-tauri/tauri.conf.json`. Public macOS releases are signed and notarized by GitHub
-Actions with a Developer ID Application certificate.
+Installers (DMG, NSIS) are produced by [cargo-packager](https://github.com/crabnebula-dev/cargo-packager)
+in GitHub Actions; public macOS releases are signed and notarized there with a
+Developer ID Application certificate.
 
 ## Contributing
 
-Issues and pull requests are welcome. Please run the Rust and frontend checks before
-submitting a change.
+Issues and pull requests are welcome. Please run the Rust checks before submitting a change.
 
 ## ffmpeg
 
