@@ -661,30 +661,57 @@ impl OverlayUi {
             return;
         };
         let mut commit = false;
-        let response = egui::Area::new("inline-text".into())
+        // Cartouche de bulle : éditeur encadré, centré là où le cartouche sera
+        // dessiné, validé par Entrée. Texte libre : saisie sans cadre, multiligne.
+        let label = entry.target.is_some();
+        let area = egui::Area::new("inline-text".into())
             .order(egui::Order::Foreground)
-            .fixed_pos(entry.at)
-            .show(ctx, |ui| {
+            .fixed_pos(entry.at);
+        let area = if label {
+            area.pivot(Align2::CENTER_CENTER)
+        } else {
+            area
+        };
+        let response = area.show(ctx, |ui| {
+            let width = raster::text_size(&entry.value, entry.size).x.max(100.0) + 12.0;
+            let response = if label {
+                egui::Frame::new()
+                    .fill(Color32::from_rgb(0x0d, 0x11, 0x17))
+                    .stroke(Stroke::new(2.0, entry.color))
+                    .corner_radius(5)
+                    .inner_margin(6)
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::singleline(&mut entry.value)
+                                .font(FontId::proportional(entry.size))
+                                .text_color(Color32::from_rgb(0xe6, 0xed, 0xf3))
+                                .frame(egui::Frame::NONE)
+                                .hint_text("Label")
+                                .desired_width(width),
+                        )
+                    })
+                    .inner
+            } else {
                 ui.visuals_mut().override_text_color = Some(entry.color);
-                let width = raster::text_size(&entry.value, entry.size).x.max(100.0) + 12.0;
-                let response = ui.add(
+                ui.add(
                     egui::TextEdit::multiline(&mut entry.value)
                         .font(FontId::proportional(entry.size))
                         .text_color(entry.color)
                         .frame(egui::Frame::NONE)
                         .desired_width(width)
                         .desired_rows(1),
-                );
-                if entry.focus {
-                    response.request_focus();
-                    entry.focus = false;
-                }
-                let key = ui.input(|i| {
-                    i.key_pressed(egui::Key::Escape)
-                        || (i.modifiers.command && i.key_pressed(egui::Key::Enter))
-                });
-                commit = key || response.lost_focus();
+                )
+            };
+            if entry.focus {
+                response.request_focus();
+                entry.focus = false;
+            }
+            let key = ui.input(|i| {
+                i.key_pressed(egui::Key::Escape)
+                    || (i.modifiers.command && i.key_pressed(egui::Key::Enter))
             });
+            commit = key || response.lost_focus();
+        });
         self.text_rect = response.response.rect;
         if commit {
             self.commit_text();
@@ -854,23 +881,23 @@ impl OverlayUi {
                     } else if self.tool == Tool::Text {
                         self.start_text(at, None);
                     } else if self.tool == Tool::Bubble {
-                        let now = ctx.input(|i| i.time);
-                        let double = self.last_click.and_then(|(i, time, p)| {
-                            self.annotations
-                                .get(i)
-                                .filter(|a| {
-                                    a.tool == Tool::Bubble
-                                        && a.hit(at)
-                                        && now - time < 0.35
-                                        && p.distance(at) < 5.0
-                                })
-                                .map(|_| i)
-                        });
-                        if let Some(index) = double {
+                        // Clic sur une bulle existante : édition de son cartouche
+                        // (bulle → trait → texte encadré). Ailleurs : nouvelle bulle.
+                        let existing = self
+                            .annotations
+                            .iter()
+                            .enumerate()
+                            .rev()
+                            .find(|(_, a)| {
+                                a.tool == Tool::Bubble
+                                    && (a.hit(at)
+                                        || (!a.text.is_empty() && a.label_rect().contains(at)))
+                            })
+                            .map(|(i, _)| i);
+                        if let Some(index) = existing {
                             let a = &self.annotations[index];
                             self.start_text(a.rect.min + a.label_offset, Some(index));
                         } else {
-                            let index = self.annotations.len();
                             self.annotations.push(Annotation::new(
                                 Tool::Bubble,
                                 at,
@@ -878,7 +905,6 @@ impl OverlayUi {
                                 self.width,
                                 self.font_size,
                             ));
-                            self.last_click = Some((index, now, at));
                             self.snapshot();
                         }
                     } else {
@@ -1294,11 +1320,14 @@ fn paint_annotation(p: &egui::Painter, a: &Annotation, number: Option<usize>) {
             ));
         }
         Tool::Line | Tool::Arrow | Tool::Pencil => {
-            let points = if a.tool == Tool::Pencil {
+            let mut points = if a.tool == Tool::Pencil {
                 ed::smooth_points(&a.points)
             } else {
                 a.points.clone()
             };
+            if a.tool == Tool::Arrow && points.len() >= 2 {
+                points[1] = raster::arrow_shaft_end(points[0], points[1], a.width);
+            }
             if points.len() > 1 {
                 for at in &points {
                     p.circle_filled(*at, a.width / 2.0, a.color);

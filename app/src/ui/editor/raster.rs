@@ -180,15 +180,26 @@ fn rounded_path(rect: Rect, r: f32) -> Option<tiny_skia::Path> {
     b.close();
     b.finish()
 }
+/// Longueur de la pointe d'une flèche : franche même en trait fin, proportionnée
+/// en trait épais.
+fn arrow_head_length(width: f32) -> f32 {
+    (width * 4.0).max(16.0)
+}
 pub fn arrow_head(from: Pos2, to: Pos2, width: f32) -> [Pos2; 3] {
     let direction = (to - from).normalized();
     let normal = vec2(-direction.y, direction.x);
-    let length = (width * 3.0).max(10.0);
+    let length = arrow_head_length(width);
     [
         to,
-        to - direction * length + normal * length * 0.45,
-        to - direction * length - normal * length * 0.45,
+        to - direction * length + normal * length * 0.5,
+        to - direction * length - normal * length * 0.5,
     ]
+}
+/// Fin du trait d'une flèche : s'arrête sous la pointe, pour que l'épaisseur du
+/// trait ne dépasse pas de part et d'autre de la pointe.
+pub fn arrow_shaft_end(from: Pos2, to: Pos2, width: f32) -> Pos2 {
+    let length = arrow_head_length(width).min((to - from).length());
+    to - (to - from).normalized() * length * 0.6
 }
 pub fn composite(
     image: &RgbaImage,
@@ -256,6 +267,12 @@ pub fn composite(
                     for at in &points[1..] {
                         path.line_to(at.x, at.y);
                     }
+                }
+                if a.tool == Tool::Arrow && points.len() >= 2 {
+                    let end = arrow_shaft_end(points[0], points[1], a.width);
+                    path = PathBuilder::new();
+                    path.move_to(points[0].x, points[0].y);
+                    path.line_to(end.x, end.y);
                 }
             }
             Tool::Text => {

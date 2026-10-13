@@ -237,8 +237,11 @@ impl App {
                 delay: info.delay,
             });
         });
-        gl.window.request_redraw();
         self.windows.insert(id, Managed { kind, gl, ui });
+        // Première image peinte tout de suite : une fenêtre encore invisible ne
+        // reçoit jamais WM_PAINT sous Windows, donc `request_redraw` ne suffirait
+        // pas à déclencher l'image qui la rend visible.
+        self.redraw(id);
         Some(id)
     }
 
