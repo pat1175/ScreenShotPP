@@ -36,6 +36,7 @@ fn platform_key() -> &'static str {
 }
 
 /// Extrait la mise à jour d'un manifeste si elle est plus récente que `current`.
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 pub fn parse_manifest(
     json: &str,
     platform: &str,
@@ -63,9 +64,25 @@ pub fn parse_manifest(
     }))
 }
 
+/// Client HTTP sur le magasin de certificats de l'OS (proxys d'entreprise qui
+/// réécrivent TLS avec leur propre autorité racine).
+#[cfg(any(windows, target_os = "macos"))]
+fn agent() -> ureq::Agent {
+    use ureq::tls::{RootCerts, TlsConfig};
+    ureq::Agent::config_builder()
+        .tls_config(
+            TlsConfig::builder()
+                .root_certs(RootCerts::PlatformVerifier)
+                .build(),
+        )
+        .build()
+        .into()
+}
+
 #[cfg(any(windows, target_os = "macos"))]
 pub fn check() -> Result<Option<UpdateInfo>, String> {
-    let body = ureq::get(ENDPOINT)
+    let body = agent()
+        .get(ENDPOINT)
         .call()
         .map_err(|e| e.to_string())?
         .body_mut()
@@ -117,7 +134,7 @@ pub fn download_and_install(
     progress: impl Fn(u64, Option<u64>),
 ) -> Result<(), String> {
     use std::io::Read;
-    let mut response = ureq::get(&info.url).call().map_err(|e| e.to_string())?;
+    let mut response = agent().get(&info.url).call().map_err(|e| e.to_string())?;
     let total = response
         .headers()
         .get("content-length")
