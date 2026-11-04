@@ -263,6 +263,29 @@ pub fn anchors(r: Rect) -> [Pos2; 8] {
         pos2(r.left(), r.center().y),
     ]
 }
+/// Rayon de saisie (points) des poignées de la zone capturée.
+pub const SELECTION_HANDLE_RADIUS: f32 = 13.0;
+/// Poignée de la zone capturée (index de [`anchors`]) la plus proche de `at`, dans
+/// le rayon de saisie. La plus proche gagne : sur une très petite zone où coins et
+/// milieux se chevauchent, on prend celle visée plutôt que la première trouvée.
+pub fn selection_anchor_at(r: Rect, at: Pos2) -> Option<usize> {
+    anchors(r)
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| (i, p.distance(at)))
+        .filter(|(_, d)| *d < SELECTION_HANDLE_RADIUS)
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(i, _)| i)
+}
+/// Curseur de redimensionnement d'une ancre (sens horaire depuis le coin haut-gauche).
+pub fn anchor_cursor(anchor: usize) -> egui::CursorIcon {
+    match anchor {
+        0 | 4 => egui::CursorIcon::ResizeNwSe,
+        2 | 6 => egui::CursorIcon::ResizeNeSw,
+        1 | 5 => egui::CursorIcon::ResizeVertical,
+        _ => egui::CursorIcon::ResizeHorizontal,
+    }
+}
 pub fn bounded_delta(rect: Rect, delta: Vec2, bounds: Rect) -> Vec2 {
     if rect.width() > bounds.width() || rect.height() > bounds.height() {
         return Vec2::ZERO;
@@ -491,6 +514,56 @@ mod tests {
         }
         assert_eq!(resize(r, 3, pos2(999.0, 30.0), b).right(), 100.0);
         assert_eq!(resize(r, 5, pos2(30.0, 999.0), b).bottom(), 80.0);
+    }
+    #[test]
+    fn selection_corners_move_two_edges_within_bounds() {
+        let b = Rect::from_min_size(Pos2::ZERO, vec2(100.0, 80.0));
+        let r = Rect::from_min_size(pos2(10.0, 10.0), vec2(40.0, 40.0));
+        for (anchor, p, expected) in [
+            (
+                0,
+                pos2(5.0, 2.0),
+                Rect::from_min_max(pos2(5.0, 2.0), pos2(50.0, 50.0)),
+            ),
+            (
+                2,
+                pos2(70.0, 2.0),
+                Rect::from_min_max(pos2(10.0, 2.0), pos2(70.0, 50.0)),
+            ),
+            (
+                4,
+                pos2(70.0, 75.0),
+                Rect::from_min_max(pos2(10.0, 10.0), pos2(70.0, 75.0)),
+            ),
+            (
+                6,
+                pos2(5.0, 75.0),
+                Rect::from_min_max(pos2(5.0, 10.0), pos2(50.0, 75.0)),
+            ),
+        ] {
+            assert_eq!(resize(r, anchor, p, b), expected, "anchor {anchor}");
+        }
+        // Minimum 2 points sur les deux axes, puis bornage au fond sur les deux axes.
+        assert_eq!(
+            resize(r, 0, pos2(99.0, 99.0), b),
+            Rect::from_min_max(pos2(48.0, 48.0), pos2(50.0, 50.0))
+        );
+        assert_eq!(
+            resize(r, 4, pos2(500.0, 500.0), b),
+            Rect::from_min_max(pos2(10.0, 10.0), pos2(100.0, 80.0))
+        );
+    }
+    #[test]
+    fn selection_anchor_hit_prefers_nearest_handle() {
+        let r = Rect::from_min_size(pos2(10.0, 10.0), vec2(40.0, 40.0));
+        assert_eq!(selection_anchor_at(r, pos2(12.0, 11.0)), Some(0));
+        assert_eq!(selection_anchor_at(r, pos2(49.0, 51.0)), Some(4));
+        assert_eq!(selection_anchor_at(r, pos2(30.0, 9.0)), Some(1));
+        assert_eq!(selection_anchor_at(r, pos2(30.0, 30.0)), None);
+        // Zone minuscule : coins et milieux se chevauchent, la plus proche gagne.
+        let tiny = Rect::from_min_size(pos2(10.0, 10.0), vec2(4.0, 4.0));
+        assert_eq!(selection_anchor_at(tiny, pos2(14.0, 14.5)), Some(4));
+        assert_eq!(selection_anchor_at(tiny, pos2(12.0, 9.0)), Some(1));
     }
     #[test]
     fn degenerate_shapes_are_dropped() {

@@ -23,12 +23,29 @@ pub fn attributes(monitor: &Monitor) -> winit::window::WindowAttributes {
 }
 #[derive(Clone)]
 enum Gesture {
-    Selection { start: Pos2, auto: Option<Rect> },
+    Selection {
+        start: Pos2,
+        auto: Option<Rect>,
+    },
     SelectionResize(usize),
+    /// Déplacement de la zone capturée entière (outil sélection, hors annotation).
+    SelectionMove {
+        previous: Pos2,
+        origin: Rect,
+    },
     Draw,
-    Move { index: usize, previous: Pos2 },
-    Resize { index: usize, anchor: usize },
-    LabelMove { index: usize, previous: Pos2 },
+    Move {
+        index: usize,
+        previous: Pos2,
+    },
+    Resize {
+        index: usize,
+        anchor: usize,
+    },
+    LabelMove {
+        index: usize,
+        previous: Pos2,
+    },
 }
 struct TextEntry {
     at: Pos2,
@@ -139,6 +156,61 @@ impl OverlayUi {
             self.background.min + vec2(r.x as f32, r.y as f32) / self.scale,
             vec2(r.width as f32, r.height as f32) / self.scale,
         )
+    }
+    /// Ancre de redimensionnement de l'annotation sélectionnée (rect/ellipse) sous
+    /// le pointeur : prioritaire sur les poignées de la zone capturée.
+    fn annotation_anchor_at(&self, at: Pos2) -> Option<(usize, usize)> {
+        let index = self
+            .selected
+            .filter(|i| matches!(self.annotations[*i].tool, Tool::Rect | Tool::Ellipse))?;
+        ed::anchors(self.annotations[index].rect)
+            .into_iter()
+            .position(|p| p.distance(at) < 9.0)
+            .map(|anchor| (index, anchor))
+    }
+    /// Annotation sous le pointeur (la plus haute) ; `true` si c'est le cartouche
+    /// d'une bulle plutôt que la forme elle-même.
+    fn annotation_hit(&self, at: Pos2) -> Option<(usize, bool)> {
+        self.annotations
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(i, a)| {
+                if a.tool == Tool::Bubble && !a.text.is_empty() && a.label_rect().contains(at) {
+                    Some((i, true))
+                } else if a.hit(at) {
+                    Some((i, false))
+                } else {
+                    None
+                }
+            })
+    }
+    /// Curseur sur la zone capturée verrouillée : redimensionnement sur une poignée,
+    /// déplacement dans la zone (outil sélection, hors annotation). `None` laisse le
+    /// curseur par défaut.
+    fn selection_cursor(&self, selection: Rect, at: Pos2) -> Option<egui::CursorIcon> {
+        match self.gesture {
+            Some(Gesture::SelectionResize(anchor)) => return Some(ed::anchor_cursor(anchor)),
+            Some(Gesture::SelectionMove { .. }) => return Some(egui::CursorIcon::Move),
+            Some(_) => return None,
+            None => {}
+        }
+        if self.annotation_anchor_at(at).is_some() {
+            return None;
+        }
+        if let Some(anchor) = ed::selection_anchor_at(selection, at) {
+            return Some(ed::anchor_cursor(anchor));
+        }
+        (self.tool == Tool::Select && selection.contains(at) && self.annotation_hit(at).is_none())
+            .then_some(egui::CursorIcon::Move)
+    }
+    /// Translate la zone capturée (taille inchangée), bornée au fond affiché. Les
+    /// annotations restent ancrées au contenu de l'écran.
+    fn move_selection(&mut self, delta: Vec2) {
+        if let Some(selection) = self.selection {
+            self.selection =
+                Some(selection.translate(ed::bounded_delta(selection, delta, self.background)));
+        }
     }
     fn locked(&mut self, selection: Rect, ctx: &egui::Context, screen: Rect, cx: &mut WinCx) {
         self.selection = Some(selection);
@@ -811,50 +883,26 @@ impl OverlayUi {
             } else {
                 let selection = self.selection.unwrap();
                 let mut handled = false;
-                if let Some(i) = self
-                    .selected
-                    .filter(|i| matches!(self.annotations[*i].tool, Tool::Rect | Tool::Ellipse))
-                {
-                    for (anchor, p) in ed::anchors(self.annotations[i].rect)
-                        .into_iter()
-                        .enumerate()
-                    {
-                        if p.distance(at) < 9.0 {
-                            self.gesture = Some(Gesture::Resize { index: i, anchor });
-                            handled = true;
-                            break;
-                        }
-                    }
+                if let Some((index, anchor)) = self.annotation_anchor_at(at) {
+                    self.gesture = Some(Gesture::Resize { index, anchor });
+                    handled = true;
                 }
                 if !handled {
-                    for anchor in [1, 3, 5, 7] {
-                        if ed::anchors(selection)[anchor].distance(at) < 13.0 {
-                            self.gesture = Some(Gesture::SelectionResize(anchor));
-                            handled = true;
-                            break;
-                        }
+                    if let Some(anchor) = ed::selection_anchor_at(selection, at) {
+                        self.gesture = Some(Gesture::SelectionResize(anchor));
+                        handled = true;
                     }
                 }
                 if !handled && selection.contains(at) {
                     if self.tool == Tool::Select {
-                        let hit = self
-                            .annotations
-                            .iter()
-                            .enumerate()
-                            .rev()
-                            .find_map(|(i, a)| {
-                                if a.tool == Tool::Bubble
-                                    && !a.text.is_empty()
-                                    && a.label_rect().contains(at)
-                                {
-                                    Some((i, true))
-                                } else if a.hit(at) {
-                                    Some((i, false))
-                                } else {
-                                    None
-                                }
-                            });
+                        let hit = self.annotation_hit(at);
                         self.selected = hit.map(|h| h.0);
+                        if hit.is_none() {
+                            self.gesture = Some(Gesture::SelectionMove {
+                                previous: at,
+                                origin: selection,
+                            });
+                        }
                         if let Some((index, label)) = hit {
                             let now = ctx.input(|i| i.time);
                             let double = self.last_click.is_some_and(|(i, time, p)| {
@@ -925,6 +973,14 @@ impl OverlayUi {
         if self.selection.is_none() && self.gesture.is_none() {
             self.preview = self.auto_at(at);
         }
+        if let Some(selection) = self
+            .selection
+            .filter(|_| !over_controls || self.gesture.is_some())
+        {
+            if let Some(cursor) = self.selection_cursor(selection, at) {
+                ctx.set_cursor_icon(cursor);
+            }
+        }
         if let Some(gesture) = self.gesture.clone().filter(|_| down || released) {
             match gesture {
                 Gesture::Selection { start, auto } => {
@@ -948,6 +1004,17 @@ impl OverlayUi {
                         self.background,
                     ));
                     if released {
+                        self.position_toolbar(screen);
+                    }
+                }
+                Gesture::SelectionMove { previous, origin } => {
+                    self.move_selection(at - previous);
+                    self.gesture = Some(Gesture::SelectionMove {
+                        previous: at,
+                        origin,
+                    });
+                    // Un simple clic (sans déplacement) ne replace pas la barre.
+                    if released && self.selection != Some(origin) {
                         self.position_toolbar(screen);
                     }
                 }
@@ -1084,8 +1151,7 @@ impl OverlayUi {
                 dashed_rect(&painter, r, stroke);
             } else {
                 painter.rect_stroke(r, 0, stroke, StrokeKind::Middle);
-                for anchor in [1, 3, 5, 7] {
-                    let p = ed::anchors(r)[anchor];
+                for p in ed::anchors(r) {
                     painter.circle_filled(p, 5.0, Color32::WHITE);
                     painter.circle_stroke(p, 5.0, Stroke::new(1.0, Color32::from_black_alpha(115)));
                 }
@@ -1548,5 +1614,58 @@ mod tests {
         let image = o.export().unwrap();
         assert_eq!(image.dimensions(), (80, 60));
         assert_eq!(image.get_pixel(0, 0).0, [1, 2, 3, 255]);
+    }
+    #[test]
+    fn moving_selection_keeps_size_and_stays_on_background() {
+        let mut o = overlay();
+        o.selection = Some(Rect::from_min_size(pos2(10.0, 10.0), vec2(40.0, 30.0)));
+        o.move_selection(vec2(15.0, 5.0));
+        assert_eq!(
+            o.selection,
+            Some(Rect::from_min_size(pos2(25.0, 15.0), vec2(40.0, 30.0)))
+        );
+        // Fond 100×80 : la zone reste entière dedans.
+        o.move_selection(vec2(300.0, -300.0));
+        assert_eq!(
+            o.selection,
+            Some(Rect::from_min_size(pos2(60.0, 0.0), vec2(40.0, 30.0)))
+        );
+        let r = ed::physical_rect(o.selection.unwrap(), o.background, o.scale);
+        assert_eq!((r.x, r.y, r.width, r.height), (120, 0, 80, 60));
+    }
+    #[test]
+    fn selection_cursor_reflects_handles_move_and_annotations() {
+        let mut o = overlay();
+        let s = Rect::from_min_size(pos2(10.0, 10.0), vec2(60.0, 50.0));
+        o.selection = Some(s);
+        assert_eq!(
+            o.selection_cursor(s, pos2(70.0, 60.0)),
+            Some(egui::CursorIcon::ResizeNwSe)
+        );
+        assert_eq!(
+            o.selection_cursor(s, pos2(70.0, 10.0)),
+            Some(egui::CursorIcon::ResizeNeSw)
+        );
+        assert_eq!(
+            o.selection_cursor(s, pos2(40.0, 35.0)),
+            Some(egui::CursorIcon::Move)
+        );
+        assert_eq!(o.selection_cursor(s, pos2(90.0, 75.0)), None);
+        // Sur une annotation, le clic la sélectionne : pas de curseur de déplacement de zone.
+        o.annotations.push(Annotation::new(
+            Tool::Bubble,
+            pos2(40.0, 35.0),
+            Color32::RED,
+            4.0,
+            24.0,
+        ));
+        assert_eq!(o.selection_cursor(s, pos2(41.0, 36.0)), None);
+        // Avec un outil de dessin, glisser dans la zone dessine : pas de déplacement.
+        o.tool = Tool::Rect;
+        assert_eq!(o.selection_cursor(s, pos2(30.0, 50.0)), None);
+        assert_eq!(
+            o.selection_cursor(s, pos2(70.0, 60.0)),
+            Some(egui::CursorIcon::ResizeNwSe)
+        );
     }
 }
