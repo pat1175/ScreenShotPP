@@ -14,29 +14,24 @@ Small fixes, documentation updates, and targeted improvements can go directly to
 
 Prerequisites:
 
-- Node.js 22
 - Rust stable
-- Tauri platform prerequisites for your OS:
-  - macOS: Xcode command line tools and the Tauri macOS prerequisites
-  - Windows: Microsoft C++ Build Tools and the Tauri Windows prerequisites
-
-Install dependencies:
-
-```bash
-npm ci
-```
+- macOS: Xcode command line tools
+- Windows: Microsoft C++ Build Tools (MSVC + Windows SDK)
 
 Run the app locally:
 
 ```bash
-npm run tauri dev
+cargo run --manifest-path app/Cargo.toml
 ```
 
 Build locally:
 
 ```bash
-npm run tauri build
+cargo build --release --manifest-path app/Cargo.toml
 ```
+
+Video recording needs an `ffmpeg` binary next to the executable
+(`scripts/fetch-ffmpeg.sh <windows|macos-arm>` downloads one into `app/binaries/`).
 
 ## Checks before opening a pull request
 
@@ -45,13 +40,7 @@ Please run the relevant checks before submitting a change.
 Rust tests:
 
 ```bash
-cargo test --manifest-path src-tauri/Cargo.toml --lib
-```
-
-Frontend logic tests:
-
-```bash
-node --test src/accelerator.test.js src/editable-target.test.js src/editor/history.test.js src/editor/color.test.js src/editor/bubbles.test.js src/editor/editor.test.js src/editor/mosaic.test.js
+cargo test --manifest-path app/Cargo.toml --workspace
 ```
 
 Release readiness check:

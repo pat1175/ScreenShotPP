@@ -6,13 +6,10 @@ fail() {
   exit 1
 }
 
-version=$(node -p "require('./package.json').version")
-tauri_version=$(node -p "require('./src-tauri/tauri.conf.json').version")
-cargo_version=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
+version=$(sed -n 's/^version = "\(.*\)"/\1/p' app/Cargo.toml | head -1)
 release_notes=".github/release-notes/v${version}.md"
 
-[[ "$version" == "$tauri_version" ]] || fail "package.json and tauri.conf.json versions differ"
-[[ "$version" == "$cargo_version" ]] || fail "package.json and Cargo.toml versions differ"
+[[ -n "$version" ]] || fail "version missing from app/Cargo.toml"
 
 for file in \
   LICENSE \
@@ -28,8 +25,8 @@ grep -q "A fast, native screenshot tool" README.md || fail "README tagline missi
 grep -q "docs/assets/screenshotpp-demo.gif" README.md || fail "README GIF missing"
 grep -q "Windows preview" README.md || fail "README Windows preview warning missing"
 grep -q 'tags:' .github/workflows/release.yml || fail "release tag trigger missing"
-grep -q 'npm run tauri build -- --bundles app,dmg' .github/workflows/release.yml || fail "macOS DMG build missing"
-grep -q 'npm run tauri build -- --bundles nsis' .github/workflows/release.yml || fail "Windows NSIS build missing"
+grep -q 'cargo packager --release --target aarch64-apple-darwin --formats app,dmg' .github/workflows/release.yml || fail "macOS DMG build missing"
+grep -q 'cargo packager --release --formats nsis' .github/workflows/release.yml || fail "Windows NSIS build missing"
 grep -q 'APPLE_SIGNING_IDENTITY' .github/workflows/release.yml || fail "release signing identity missing"
 grep -q 'APPLE_API_KEY_PATH' .github/workflows/release.yml || fail "notarization API key path missing"
 

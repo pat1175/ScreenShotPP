@@ -1,10 +1,7 @@
 # Dépendances & builds
-node_modules/
 dist/
-dist-ssr
-src-tauri/target/
-src-tauri/gen/
-src-tauri/swift-lib/.build/
+app/target/
+app/swift-lib/.build/
 
 # Compagnon visuel brainstorming
 .superpowers/
@@ -21,11 +18,6 @@ src-tauri/swift-lib/.build/
 # Logs
 logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
 
 # Local env files
 *.local
@@ -42,7 +34,7 @@ Certificates.p12
 /docs/superpowers/
 
 # local zig-linker shim (machine-specific, no system cc)
-/src-tauri/.cargo/config.toml
+/app/.cargo/config.toml
 
 # ffmpeg sidecar téléchargé par scripts/fetch-ffmpeg.sh (jamais commité)
-/src-tauri/binaries/
+/app/binaries/

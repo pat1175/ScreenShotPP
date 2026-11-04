@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- ScreenShotPP : viseur de capture (4 coins) + « ++ ». Source des icônes. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b8cff"/>
+      <stop offset="1" stop-color="#5b3df5"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#bg)"/>
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#shine)"/>
+  <!-- coins du viseur -->
+  <g fill="none" stroke="#ffffff" stroke-width="64" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M232 392 V272 a40 40 0 0 1 40 -40 H392"/>
+    <path d="M632 232 H752 a40 40 0 0 1 40 40 V392"/>
+    <path d="M792 632 V752 a40 40 0 0 1 -40 40 H632"/>
+    <path d="M392 792 H272 a40 40 0 0 1 -40 -40 V632"/>
+  </g>
+  <!-- ++ -->
+  <g stroke-linecap="round" stroke-width="72">
+    <path d="M412 512 H612 M512 412 V612" stroke="#ffffff"/>
+  </g>
+  <g stroke-linecap="round" stroke-width="44">
+    <path d="M626 376 H726 M676 326 V426" stroke="#ffc53d"/>
+  </g>
+</svg>
