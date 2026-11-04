@@ -46,9 +46,17 @@ Sorted by priority / effort. Each item keeps its open technical question where o
       Open questions: encoder (bundled ffmpeg? OS API?), binary size, continuous
       capture performance, output format (mp4 / gif / animated webp).
 
-- [x] **Adjust the capture area after selection** — shipped in v0.5.1.
-      Each of the four sides can be dragged independently through a small white
-      circular handle centered on that side.
+- [x] **Adjust the capture area after selection** — sides shipped in v0.5.1;
+      corners and move in v0.6.0. Each side and each corner has a small white
+      circular handle (a corner moves its two edges). With the select tool,
+      dragging inside the area (outside any annotation) moves it, size unchanged
+      and clamped to the captured image.
+
+- [x] **Mixed-DPI secondary monitor** — fixed in v0.6.0. winit sizes a new
+      window on the primary screen and then moves it; when the target screen has
+      another scale factor, WM_DPICHANGED rescaled it, so the overlay no longer
+      covered the captured screen. `gl_window::repin` re-applies the physical
+      position/size after creation (overlay and recording HUD).
 
 - [ ] **Capture history**
       Persist each copied/saved capture to a dedicated folder plus an index, with a
