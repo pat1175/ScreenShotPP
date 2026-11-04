@@ -21,6 +21,7 @@ native OCR when needed, then copy or save the result.
 ## Features
 
 - Fast region capture on the monitor under your cursor
+- Adjust the captured area afterwards: drag its sides or corners, or move it
 - Floating annotation toolbar
 - Rectangles, ellipses, lines, arrows, freehand drawing and text
 - Numbered bubbles for tutorials and documentation
