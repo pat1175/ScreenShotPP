@@ -54,6 +54,7 @@ impl GlWindow {
         show: Option<ShowMode>,
     ) -> Result<Self, String> {
         let attributes = attributes.with_visible(false);
+        let placement = (attributes.position, attributes.inner_size);
         let window = match gl_state {
             Some(state) => glutin_winit::finalize_window(event_loop, attributes, &state.config)
                 .map_err(|e| format!("Création de fenêtre échouée: {e}"))?,
@@ -90,6 +91,7 @@ impl GlWindow {
             }
         };
         let state = gl_state.as_ref().expect("display GL initialisé ci-dessus");
+        repin(&window, placement);
 
         let raw = window.window_handle().map_err(|e| e.to_string())?.as_raw();
         let context_attributes = ContextAttributesBuilder::new().build(Some(raw));
@@ -196,6 +198,37 @@ impl GlWindow {
         self.window.request_redraw();
     }
 }
+
+/// Réapplique position et taille demandées une fois la fenêtre créée.
+///
+/// Windows : winit crée la fenêtre sur l'écran principal, lui donne sa taille,
+/// PUIS la déplace. Si l'écran cible a un autre facteur d'échelle (ex. portable à
+/// 150 % + écran externe à 100 %), WM_DPICHANGED redimensionne la fenêtre pour
+/// conserver sa taille *logique* : l'overlay ne couvre plus l'écran capturé et la
+/// correspondance image/fenêtre est faussée. Les unités natives Windows sont des
+/// pixels physiques ; une fois la fenêtre sur le bon écran, les réappliquer est
+/// exact. Position, taille puis position : le changement de DPI peut aussi la
+/// décaler.
+///
+/// macOS : unités logiques globales, le placement initial est déjà exact.
+#[cfg(windows)]
+fn repin(
+    window: &Window,
+    (position, size): (Option<winit::dpi::Position>, Option<winit::dpi::Size>),
+) {
+    if let Some(position) = position {
+        window.set_outer_position(position);
+    }
+    if let Some(size) = size {
+        let _ = window.request_inner_size(size);
+    }
+    if let Some(position) = position {
+        window.set_outer_position(position);
+    }
+}
+
+#[cfg(not(windows))]
+fn repin(_: &Window, _: (Option<winit::dpi::Position>, Option<winit::dpi::Size>)) {}
 
 impl Drop for GlWindow {
     fn drop(&mut self) {
