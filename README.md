@@ -4,8 +4,8 @@
 
 Capture. Annotate. OCR. Copy. Done.
 
-[Download for macOS](https://github.com/xVc323/ScreenShotPP/releases/latest) ·
-[Download for Windows](https://github.com/xVc323/ScreenShotPP/releases/latest)
+[Download for macOS](https://github.com/pat1175/ScreenShotPP/releases/latest) ·
+[Download for Windows](https://github.com/pat1175/ScreenShotPP/releases/latest)
 
 ![ScreenShotPP demo](docs/assets/screenshotpp-demo.gif)
 
@@ -43,13 +43,13 @@ You can change it from the ScreenShotPP settings window.
 
 ### macOS
 
-1. Download the latest `.dmg` from [GitHub Releases](https://github.com/xVc323/ScreenShotPP/releases/latest).
+1. Download the latest `.dmg` from [GitHub Releases](https://github.com/pat1175/ScreenShotPP/releases/latest).
 2. Open the DMG and drag ScreenShotPP into `Applications`.
 3. Launch ScreenShotPP and grant Screen Recording permission when macOS asks.
 
 ### Windows preview
 
-1. Download the latest NSIS `.exe` installer from [GitHub Releases](https://github.com/xVc323/ScreenShotPP/releases/latest).
+1. Download the latest NSIS `.exe` installer from [GitHub Releases](https://github.com/pat1175/ScreenShotPP/releases/latest).
 2. Run the installer.
 3. If Microsoft SmartScreen warns about the unsigned preview build, verify that the
    installer comes from this repository, then choose **More info** → **Run anyway**.

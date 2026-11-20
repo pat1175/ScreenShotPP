@@ -8,7 +8,7 @@ const { relaunch } = window.__TAURI__.process;
 const { openUrl } = window.__TAURI__.opener;
 const { getCurrentWindow } = window.__TAURI__.window;
 
-const RELEASES_URL = "https://github.com/xVc323/ScreenShotPP/releases";
+const RELEASES_URL = "https://github.com/pat1175/ScreenShotPP/releases";
 const SKIPPED_KEY = "skippedUpdateVersion";
 
 const shortcutBtn = document.getElementById("shortcut");

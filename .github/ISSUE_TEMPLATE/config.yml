@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Read the README
-    url: https://github.com/xVc323/ScreenShotPP#readme
+    url: https://github.com/pat1175/ScreenShotPP#readme
     about: Check installation, features, shortcuts, and development instructions.
   - name: Download the latest release
-    url: https://github.com/xVc323/ScreenShotPP/releases/latest
+    url: https://github.com/pat1175/ScreenShotPP/releases/latest
     about: Install the latest public build before reporting an issue.

@@ -29,7 +29,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/xVc323/ScreenShotPP/releases/latest/download/latest.json"
+        "https://github.com/pat1175/ScreenShotPP/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBRjNBODg2NkY4MEIyQTgKUldTb3NvQnZocWp6NnZFMFpadDA4dFpGT1ViK1pQRnlpbVd3bEVIcWhOaGJ5aW1ZTDJFTjM4ck8K"
     }
