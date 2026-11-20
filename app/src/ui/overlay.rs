@@ -19,7 +19,9 @@ pub fn attributes(monitor: &Monitor) -> winit::window::WindowAttributes {
             monitor.rect.width as f64,
             monitor.rect.height as f64,
         ))
-        .with_transparent(false)
+        // Si le compositeur affiche la fenêtre avant de recevoir son premier
+        // buffer GL, il laisse le bureau visible au lieu de montrer du noir.
+        .with_transparent(true)
 }
 #[derive(Clone)]
 enum Gesture {
@@ -736,6 +738,10 @@ impl OverlayUi {
         // Cartouche de bulle : éditeur encadré, centré là où le cartouche sera
         // dessiné, validé par Entrée. Texte libre : saisie sans cadre, multiligne.
         let label = entry.target.is_some();
+        let submit = ctx.input(|i| {
+            i.key_pressed(egui::Key::Escape)
+                || ((label || i.modifiers.command) && i.key_pressed(egui::Key::Enter))
+        });
         let area = egui::Area::new("inline-text".into())
             .order(egui::Order::Foreground)
             .fixed_pos(entry.at);
@@ -774,15 +780,13 @@ impl OverlayUi {
                         .desired_rows(1),
                 )
             };
-            if entry.focus {
+            // Le relâchement du clic d'ouverture est hors du cartouche. Prendre
+            // le focus avant ce relâchement le fait perdre aussitôt dans egui.
+            if entry.focus && !ui.is_sizing_pass() && !ui.input(|i| i.pointer.primary_down()) {
                 response.request_focus();
                 entry.focus = false;
             }
-            let key = ui.input(|i| {
-                i.key_pressed(egui::Key::Escape)
-                    || (i.modifiers.command && i.key_pressed(egui::Key::Enter))
-            });
-            commit = key || response.lost_focus();
+            commit = submit || (!label && response.lost_focus());
         });
         self.text_rect = response.response.rect;
         if commit {
@@ -1307,6 +1311,7 @@ impl WindowUi for OverlayUi {
         self.color_picker(&ctx, screen, cx);
         self.text_entry(&ctx);
         if was_editing
+            && ctx.current_pass_index() == 0
             && self.text.is_some()
             && ctx.input(|i| {
                 i.pointer.button_pressed(egui::PointerButton::Primary)
@@ -1319,6 +1324,9 @@ impl WindowUi for OverlayUi {
         }
         if !was_editing {
             self.pointer(ui, &ctx, screen, cx);
+            if self.text.is_some() {
+                ctx.request_repaint();
+            }
         }
         self.paint(&ctx, screen);
         self.ocr_panel(&ctx, screen, cx);
@@ -1491,15 +1499,20 @@ fn tool_icon(p: &egui::Painter, r: Rect, tool: Tool, color: Color32) {
             p.line_segment([r.right_top(), pos2(r.right(), r.top() + 7.0)], s);
         }
         Tool::Pencil => {
-            p.add(egui::Shape::line(
-                vec![
-                    r.left_bottom(),
-                    pos2(c.x - 3.0, c.y - 3.0),
-                    pos2(c.x + 3.0, c.y + 3.0),
-                    r.right_top(),
-                ],
-                s,
-            ));
+            let at = |x, y| r.min + r.size() * vec2(x, y);
+            let cross = at(0.53, 0.55);
+            for points in [
+                [at(0.0, 0.93), at(0.17, 0.51), at(0.34, 0.41), cross],
+                [cross, at(0.84, 0.78), at(0.92, 0.13), at(0.64, 0.16)],
+                [at(0.64, 0.16), at(0.34, 0.2), at(0.31, 0.75), at(1.0, 0.76)],
+            ] {
+                p.add(egui::epaint::CubicBezierShape::from_points_stroke(
+                    points,
+                    false,
+                    Color32::TRANSPARENT,
+                    s,
+                ));
+            }
         }
         Tool::Text => {
             p.line_segment([r.left_bottom(), pos2(c.x, r.top())], s);
@@ -1603,6 +1616,57 @@ mod tests {
         o.redo();
         assert_eq!(o.annotations[0].text, "Hello");
     }
+    #[test]
+    fn bubble_editor_accepts_text_after_the_opening_click_is_released() {
+        let mut o = overlay();
+        let bubble = pos2(100.0, 100.0);
+        o.annotations
+            .push(Annotation::new(Tool::Bubble, bubble, Color32::RED, 4.0, 24.0));
+        let label = bubble + o.annotations[0].label_offset;
+        let ctx = egui::Context::default();
+        let frame = |o: &mut OverlayUi, events| {
+            ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(200.0, 160.0))),
+                    events,
+                    ..Default::default()
+                },
+                |ui| o.text_entry(ui.ctx()),
+            )
+            .textures_delta
+            .clear();
+        };
+        let click = |pressed| egui::Event::PointerButton {
+            pos: bubble,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(&mut o, vec![egui::Event::PointerMoved(bubble), click(true)]);
+        o.start_text(label, Some(0));
+        frame(&mut o, vec![]);
+        frame(&mut o, vec![]);
+        frame(&mut o, vec![click(false)]);
+        frame(&mut o, vec![egui::Event::Text("Détail".into())]);
+        assert!(o.annotations[0].text.is_empty());
+        assert_eq!(
+            o.text.as_ref().map(|entry| entry.value.as_str()),
+            Some("Détail")
+        );
+        frame(
+            &mut o,
+            vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+        );
+        assert!(o.text.is_none());
+        assert_eq!(o.annotations[0].text, "Détail");
+    }
+
     #[test]
     fn letterboxed_export_uses_bitmap_origin() {
         let mut o = overlay();
