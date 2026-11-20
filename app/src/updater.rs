@@ -5,10 +5,9 @@
 use crate::app::{Command, UserEvent};
 use winit::event_loop::EventLoopProxy;
 
-pub const RELEASES_URL: &str = "https://github.com/xVc323/ScreenShotPP/releases";
+pub const RELEASES_URL: &str = "https://github.com/pat1175/ScreenShotPP/releases";
 #[cfg(any(windows, target_os = "macos"))]
-const ENDPOINT: &str =
-    "https://github.com/xVc323/ScreenShotPP/releases/latest/download/latest.json";
+const ENDPOINT: &str = "https://github.com/pat1175/ScreenShotPP/releases/latest/download/latest.json";
 #[cfg(any(windows, target_os = "macos"))]
 const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBRjNBODg2NkY4MEIyQTgKUldTb3NvQnZocWp6NnZFMFpadDA4dFpGT1ViK1pQRnlpbVd3bEVIcWhOaGJ5aW1ZTDJFTjM4ck8K";
 
