@@ -23,6 +23,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: app
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked
       - name: Import Developer ID Application certificate
@@ -65,17 +68,27 @@ jobs:
       - name: Build signed and notarized app + DMG
         working-directory: app
         env:
-          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           cargo build --release --target aarch64-apple-darwin
-          cargo packager --release --target aarch64-apple-darwin --formats app,dmg
-          # Archive de mise à jour (format attendu par l'updater) + signature minisign.
+          # cargo-packager reads the identity from its config, not the environment.
+          config=$(cargo metadata --no-deps --format-version 1 | jq -ce '
+            .target_directory as $target
+            | .packages[] | select(.name == "screenshotpp")
+            | .metadata.packager + {
+                version: .version,
+                authors: .authors,
+                binariesDir: ($target + "/aarch64-apple-darwin/release"),
+                binaries: [{path: .name, main: true}]
+              }
+            | .macos["signing-identity"] = env.APPLE_SIGNING_IDENTITY
+          ')
+          cargo packager --release --target aarch64-apple-darwin --formats app,dmg --config "$config"
+          # Keep the existing Tauri updater key and its empty-password support.
           cd target/packages
           tar -czf ScreenShotPP.app.tar.gz ScreenShotPP.app
-          cargo packager signer sign ScreenShotPP.app.tar.gz \
-            --private-key "$CARGO_PACKAGER_SIGN_PRIVATE_KEY" \
-            --password "$CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD"
+          npx --yes --package @tauri-apps/cli@2.11.4 tauri signer sign ScreenShotPP.app.tar.gz
       - name: Notarize and staple the DMG
         run: |
           dmg=$(ls app/target/packages/*.dmg)
@@ -108,17 +121,27 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: app
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
       - name: Install cargo-packager
         run: cargo install cargo-packager --locked
       - name: Build Windows NSIS preview installer
         working-directory: app
         shell: bash
-        env:
-          CARGO_PACKAGER_SIGN_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          CARGO_PACKAGER_SIGN_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           cargo build --release
           cargo packager --release --formats nsis
+      - name: Sign Windows updater installer
+        working-directory: app
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          installers=(target/packages/*-setup.exe)
+          test "${#installers[@]}" -eq 1 && test -f "${installers[0]}"
+          npx --yes --package @tauri-apps/cli@2.11.4 tauri signer sign "${installers[0]}"
       - uses: actions/upload-artifact@v7
         with:
           name: release-windows
