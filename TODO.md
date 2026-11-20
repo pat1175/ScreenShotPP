@@ -46,9 +46,17 @@ Sorted by priority / effort. Each item keeps its open technical question where o
       Open questions: encoder (bundled ffmpeg? OS API?), binary size, continuous
       capture performance, output format (mp4 / gif / animated webp).
 
-- [x] **Adjust the capture area after selection** — shipped in v0.5.1.
-      Each of the four sides can be dragged independently through a small white
-      circular handle centered on that side.
+- [x] **Adjust the capture area after selection** — sides shipped in v0.5.1;
+      corners and move in v0.6.0. Each side and each corner has a small white
+      circular handle (a corner moves its two edges). With the select tool,
+      dragging inside the area (outside any annotation) moves it, size unchanged
+      and clamped to the captured image.
+
+- [x] **Mixed-DPI secondary monitor** — fixed in v0.6.0. winit sizes a new
+      window on the primary screen and then moves it; when the target screen has
+      another scale factor, WM_DPICHANGED rescaled it, so the overlay no longer
+      covered the captured screen. `gl_window::repin` re-applies the physical
+      position/size after creation (overlay and recording HUD).
 
 - [ ] **Capture history**
       Persist each copied/saved capture to a dedicated folder plus an index, with a
@@ -61,18 +69,14 @@ Sorted by priority / effort. Each item keeps its open technical question where o
 
 ## Large / long-term
 
-- [ ] **Native Rust UI (drop the webview)**
-      Today the UI is HTML/CSS/JS in a Tauri webview, which costs ~110-120 MB RAM.
-      Goal: a fully native Rust GUI for a much lighter footprint.
-      Scope: this is close to a full rewrite, and cross-platform native GUI is the
-      hard part. The Konva-based annotation editor (overlay, shapes, text, bubbles,
-      mosaic, transformer) would need reimplementing in the chosen toolkit.
-      Candidate toolkits: `egui` (immediate-mode, easiest for a canvas/annotation
-      tool), `iced`, or `slint`. The pure logic already extracted into
-      `screenshotpp-core` (geometry, countdown, settings) would carry over unchanged.
-      Open questions: which toolkit; transparent always-on-top overlay + per-monitor
-      sizing parity with the current window; text input/IME; tray integration;
-      effort vs. payoff.
+- [ ] **Native Rust UI (drop the webview)** — in test on `feat/egui-native`
+      Full egui port: one winit loop, one glutin/egui window per app window
+      (settings, overlay, countdown, recording HUD, recorder), `tray-icon` +
+      `global-hotkey` directly, CPU export (tiny-skia), ffmpeg-decoded video preview
+      in the recorder. No webview, no Node toolchain; `src-tauri/` became `app/`.
+      Remaining before merge: real-device Windows/macOS QA (multi-monitor,
+      mixed-DPI, IME), first cargo-packager release run (DMG/NSIS + updater
+      artifacts), RAM comparison against v0.5.1.
 
 ## Out of scope (decided 2026-06-30)
 
@@ -90,8 +94,6 @@ Sorted by priority / effort. Each item keeps its open technical question where o
       (`cargo test -p screenshotpp-core`).
 - [x] Split CI into a fast pure-logic job (~45 s) and the full platform builds;
       Windows uses the D: drive for cargo.
-- [ ] Integration tests for the overlay (`overlay.js`, `editor.js` are uncovered).
-      Runtime bugs (e.g. the v0.3.1 Windows freeze) slip past CI because it only
-      runs `cargo test --lib` / node logic tests — a real gap.
-- [ ] Split `editor/editor.js` (706 lines) by tool.
+- [ ] Integration tests for the overlay (`app/src/ui/overlay.rs` interaction flow
+      is uncovered; only its pure logic and export are unit-tested).
 - [ ] Improve permission / OCR error messages.

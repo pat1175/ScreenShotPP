@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Télécharge un ffmpeg statique par plateforme dans src-tauri/binaries/ sous le
-# nom attendu par externalBin de Tauri : ffmpeg-<target-triple>[.exe].
+# Télécharge un ffmpeg statique par plateforme dans app/binaries/ sous le
+# nom attendu par external-binaries de cargo-packager : ffmpeg-<target-triple>[.exe].
 # Usage : scripts/fetch-ffmpeg.sh <windows|macos-arm>
 # NOTE: vérifier/mettre à jour les URLs épinglées au moment de l'implémentation.
 set -euo pipefail
 
-DIR="$(cd "$(dirname "$0")/.." && pwd)/src-tauri/binaries"
+DIR="$(cd "$(dirname "$0")/.." && pwd)/app/binaries"
 mkdir -p "$DIR"
 
 case "${1:?usage: fetch-ffmpeg.sh <windows|macos-arm>}" in
